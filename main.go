@@ -1,85 +1,173 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"strings"
+	"net/http"
+	"sync"
+)
+
+// 62進数の文字リスト（グローバル定義）
+var woList = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+
+var (
+	maxLen   = 8        // 最大長
+	numWorks = 8        // 並列処理のスレッド数
+	batch    = 50000000 // 進捗表示の間隔
+)
+
+// グローバルな変数
+var (
+	target   string
+	found    bool
+	result   string
+	progress string
+	mu       sync.Mutex // 進捗の更新を保護するためのロック
 )
 
 func main() {
-    var target string = "aaaaaa"
-    fmt.Scan(&target)
-    var answer = passCheck(target)
-    fmt.Println("パスワード:", answer)
+	http.HandleFunc("/", handleIndex)
+	http.HandleFunc("/start", handleStart)
+	http.HandleFunc("/progress", handleProgress)
+	fmt.Println("サーバーが http://localhost:8080 で起動しました...")
+	http.ListenAndServe(":8080", nil)
 }
 
-// 先頭に要素を追加する関数（スライスを拡張）
-func prependInt(slice []int, value int) []int {
-    return append([]int{value}, slice...)
+// ホームページ
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "index.html")
 }
 
-func prependStr(slice []string, value string) []string {
-    return append([]string{value}, slice...)
+// パスワード探索を開始する
+func handleStart(w http.ResponseWriter, r *http.Request) {
+	// ターゲットパスワードの受け取り
+	target = r.FormValue("target")
+	// 結果をリセット
+	reset()
+
+	// 並列処理で総当たり
+	go passCheckParallel(target)
+
+	// 初期状態のレスポンス
+	fmt.Fprintln(w, "パスワード探索を開始しました。")
 }
 
-// 文字列を 62 進数のようにカウントアップする関数
-func passCheck(target string) string {
-    // 数字 '0' ～ '9' + 大文字 'A' ～ 'Z' + 小文字 'a' ～ 'z' のリスト（62進数）
-    woList := []string{}
-    for ch := '0'; ch <= '9'; ch++ {
-        woList = append(woList, string(ch))
-    }
-    for ch := 'A'; ch <= 'Z'; ch++ {
-        woList = append(woList, string(ch))
-    }
-    for ch := 'a'; ch <= 'z'; ch++ {
-        woList = append(woList, string(ch))
-    }
+// 並列処理で総当たりする関数
+func passCheckParallel(target string) {
+	var wg sync.WaitGroup
+	resultChan := make(chan string, 1)
 
-    var knowPassNum = []int{0} // 数字のように増加させる
-    var result string
-    var count int
+	// 各スレッドを開始（最初の桁を分散）
+	for i := 0; i < numWorks; i++ {
+		wg.Add(1)
+		go worker(target, i, numWorks, &wg, resultChan)
+	}
 
-    for {
-        count++;
-        // 文字列を組み立てる
-        knowPass := make([]string, len(knowPassNum))
-        for i := range knowPassNum {
-            knowPass[i] = woList[knowPassNum[i]]
-        }
+	// 結果を待つ
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
-        // 文字列を結合してパスワードにする
-        result = strings.Join(knowPass, "")
+	// 結果を受け取る
+	for res := range resultChan {
+		setResult(res)
+	}
+}
 
-        // 目標のパスワードと一致した場合
-        if result == target {
-            return result
-        }
+// 各スレッドが担当する範囲を決めて探索
+func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan chan string) {
+	defer wg.Done()
 
-        // 62 進数のように繰り上がりを考慮しながら増加
-        knowPassNum[len(knowPassNum)-1]++
+	knowPassNum := []int{startIndex} // スレッドごとの開始位置
+	passBytes := make([]byte, 1)     // 生成するパスワード（バイトスライス）
+	count := 0
 
-        for i := len(knowPassNum) - 1; i >= 0; i-- {
-            if knowPassNum[i] == len(woList) {
-                knowPassNum[i] = 0
-                if i == 0 {
-                    // 一番左の桁が繰り上がった場合、新しい桁を追加
-                    knowPassNum = prependInt(knowPassNum, 0)
-                } else {
-                    knowPassNum[i-1]++
-                }
-            }
-        }
+	for {
+		if found {
+			return // 既に見つかったら終了
+		}
+		count++ // 現在のパスワードを作成
 
-        if count % 10000000 == 0 {
-            count = 0
-            fmt.Println("計算中",result) // 試行中のパスワードを表示
-        }
+		for i, num := range knowPassNum {
+			passBytes[i] = woList[num]
+		}
 
-        // 最大長 8 を超えたら強制終了
-        if len(knowPassNum) > 8 {
-            break
-        }
-    }
+		// 目標のパスワードと一致
+		if string(passBytes) == target {
+			resultChan <- string(passBytes)
+			return
+		}
 
-    return ""
+		// 進捗表示
+		if count%batch == 0 {
+			updateProgress(fmt.Sprintf("現在のパスワード: %s", string(passBytes)))
+		}
+
+		// 62進数のカウントアップ（stepごとに増加）
+		carry := true
+		for i := len(knowPassNum) - 1; i >= 0 && carry; i-- {
+			if i == 0 {
+				knowPassNum[i] += step // スレッドごとに異なるstepで増加
+			} else {
+				knowPassNum[i]++
+			}
+
+			if knowPassNum[i] >= len(woList) {
+				knowPassNum[i] = 0
+			} else {
+				carry = false
+			}
+		}
+
+		// 繰り上がりが発生
+		if carry {
+			if len(knowPassNum) >= maxLen {
+				return // 最大長を超えたら終了
+			}
+			knowPassNum = append([]int{startIndex}, knowPassNum...)
+			passBytes = append([]byte{woList[startIndex]}, passBytes...)
+		}
+	}
+}
+
+// 進捗を更新する関数（スレッドセーフ）
+func updateProgress(msg string) {
+	mu.Lock()
+	progress = msg
+	mu.Unlock()
+}
+
+// 結果をセットする関数（スレッドセーフ）
+func setResult(res string) {
+	mu.Lock()
+	result = res
+	found = true
+	progress = "パスワードが見つかりました！"
+	mu.Unlock()
+}
+
+// 進捗を取得する
+func handleProgress(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	data := struct {
+		Progress string `json:"progress"`
+		Result   string `json:"result"`
+	}{
+		Progress: progress,
+		Result:   result,
+	}
+	mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}
+
+// 結果をリセットする
+func reset() {
+	mu.Lock()
+	found = false
+	result = ""
+	progress = "探索中..."
+	mu.Unlock()
 }
