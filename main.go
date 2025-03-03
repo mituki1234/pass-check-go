@@ -29,8 +29,8 @@ func main() {
 	http.HandleFunc("/", handleIndex)
 	http.HandleFunc("/start", handleStart)
 	http.HandleFunc("/progress", handleProgress)
-	fmt.Println("サーバーが http://localhost:80 で起動しました...")
-	http.ListenAndServe(":80", nil)
+	fmt.Println("サーバーが http://localhost:8080 で起動しました...")
+	http.ListenAndServe(":8080", nil)
 }
 
 // ホームページ
