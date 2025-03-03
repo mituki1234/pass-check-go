@@ -70,7 +70,7 @@ func passCheck(target string) string {
             }
         }
 
-        if count % 1000000 == 0 {
+        if count % 10000000 == 0 {
             count = 0
             fmt.Println("計算中",result) // 試行中のパスワードを表示
         }
