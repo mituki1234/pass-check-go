@@ -26,16 +26,10 @@ var (
 )
 
 func main() {
-	http.HandleFunc("/", handleIndex)
 	http.HandleFunc("/start", handleStart)
 	http.HandleFunc("/progress", handleProgress)
 	fmt.Println("サーバーが http://localhost:8080 で起動しました...")
 	http.ListenAndServe(":8080", nil)
-}
-
-// ホームページ
-func handleIndex(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "index.html")
 }
 
 // パスワード探索を開始する
