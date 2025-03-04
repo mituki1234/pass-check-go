@@ -56,7 +56,7 @@ func handleOptions(w http.ResponseWriter, r *http.Request) {
 
 // パスワード探索を開始
 func handleStart(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w)
+	setCORSHeaders(w) // CORSヘッダーを設定
 
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -72,7 +72,7 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 
 // 進捗を取得
 func handleProgress(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w)
+	setCORSHeaders(w) // CORSヘッダーを設定
 
 	mu.Lock()
 	data := struct {
