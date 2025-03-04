@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// 62進数の文字リスト（グローバル定義）
+// 62進数の文字リスト
 var woList = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
 var (
@@ -29,11 +29,15 @@ func main() {
 	http.HandleFunc("/start", handleStart)
 	http.HandleFunc("/progress", handleProgress)
 	http.HandleFunc("/", handleOptions) // CORS対応
-	fmt.Println("サーバーが http://localhost:8080 で起動しました...")
-	http.ListenAndServe(":8080", nil)
+
+	fmt.Println("HTTPSサーバーが https://localhost:8080 で起動しました...")
+	err := http.ListenAndServeTLS(":8080", "/etc/ssl/certs/origin.pem", "/etc/ssl/private/origin.key", nil)
+	if err != nil {
+		fmt.Println("サーバーエラー:", err)
+	}
 }
 
-// CORS ヘッダーを設定する関数
+// CORS ヘッダーを設定
 func setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -49,7 +53,7 @@ func handleOptions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// パスワード探索を開始する
+// パスワード探索を開始
 func handleStart(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w)
 
@@ -65,7 +69,7 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "パスワード探索を開始しました。")
 }
 
-// 進捗を取得する
+// 進捗を取得
 func handleProgress(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w)
 
@@ -83,7 +87,7 @@ func handleProgress(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(data)
 }
 
-// 並列処理で総当たりする関数
+// 並列処理で総当たり探索
 func passCheckParallel(target string) {
 	var wg sync.WaitGroup
 	resultChan := make(chan string, 1)
@@ -155,14 +159,14 @@ func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan 
 	}
 }
 
-// 進捗を更新する関数（スレッドセーフ）
+// 進捗を更新
 func updateProgress(msg string) {
 	mu.Lock()
 	progress = msg
 	mu.Unlock()
 }
 
-// 結果をセットする関数（スレッドセーフ）
+// 結果をセット
 func setResult(res string) {
 	mu.Lock()
 	result = res
@@ -171,7 +175,7 @@ func setResult(res string) {
 	mu.Unlock()
 }
 
-// 結果をリセットする
+// 結果をリセット
 func reset() {
 	mu.Lock()
 	found = false
