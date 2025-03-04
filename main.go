@@ -1,13 +1,14 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
 )
 
-// 62進数の文字リスト
+// 62進数の文字リスト（グローバル定義）
 var woList = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
 var (
@@ -26,23 +27,39 @@ var (
 )
 
 func main() {
+	// HTTP ハンドラーを設定
 	http.HandleFunc("/start", handleStart)
 	http.HandleFunc("/progress", handleProgress)
 	http.HandleFunc("/", handleOptions) // CORS対応
 
-	fmt.Println("HTTPSサーバーが https://localhost:8080 で起動しました...")
-	err := http.ListenAndServeTLS(":8080", "/etc/ssl/certs/origin.pem", "/etc/ssl/private/origin.key", nil)
+	// TLS 証明書と秘密鍵を読み込む
+	// ※ "server.crt" と "server.key" は証明書ファイルのパスに合わせて変更してください。
+	certFile := "server.crt"
+	keyFile := "server.key"
+
+	// サーバーに最低 TLS 1.2 を指定する例（必要に応じて他の TLS 設定を追加できます）
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// HTTPS サーバーの作成
+	server := &http.Server{
+		Addr:      ":8080",
+		TLSConfig: tlsConfig,
+	}
+
+	fmt.Println("サーバーが https://localhost:8080 で起動しました...")
+	err := server.ListenAndServeTLS(certFile, keyFile)
 	if err != nil {
-		fmt.Println("サーバーエラー:", err)
+		fmt.Println("Error starting server:", err)
 	}
 }
 
-// CORS ヘッダーを設定（すべてのオリジンからのリクエストを許可）
+// CORS ヘッダーを設定する関数
 func setCORSHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*") // すべてのオリジンを許可
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS") // 許可するメソッド
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type") // 許可するヘッダー
-	w.Header().Set("Access-Control-Allow-Credentials", "true") // 認証情報の送信を許可
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
 // OPTIONSリクエストを処理
@@ -54,10 +71,9 @@ func handleOptions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// パスワード探索を開始
+// パスワード探索を開始する
 func handleStart(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w) // CORSヘッダーを設定
-
+	setCORSHeaders(w)
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -66,14 +82,12 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	target = r.FormValue("target")
 	reset()
 	go passCheckParallel(target)
-
 	fmt.Fprintln(w, "パスワード探索を開始しました。")
 }
 
-// 進捗を取得
+// 進捗を取得する
 func handleProgress(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w) // CORSヘッダーを設定
-
+	setCORSHeaders(w)
 	mu.Lock()
 	data := struct {
 		Progress string `json:"progress"`
@@ -88,7 +102,7 @@ func handleProgress(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(data)
 }
 
-// 並列処理で総当たり探索
+// 並列処理で総当たりする関数
 func passCheckParallel(target string) {
 	var wg sync.WaitGroup
 	resultChan := make(chan string, 1)
@@ -160,14 +174,14 @@ func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan 
 	}
 }
 
-// 進捗を更新
+// 進捗を更新する関数（スレッドセーフ）
 func updateProgress(msg string) {
 	mu.Lock()
 	progress = msg
 	mu.Unlock()
 }
 
-// 結果をセット
+// 結果をセットする関数（スレッドセーフ）
 func setResult(res string) {
 	mu.Lock()
 	result = res
@@ -176,7 +190,7 @@ func setResult(res string) {
 	mu.Unlock()
 }
 
-// 結果をリセット
+// 結果をリセットする
 func reset() {
 	mu.Lock()
 	found = false
