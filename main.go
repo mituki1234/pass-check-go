@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -27,32 +26,11 @@ var (
 )
 
 func main() {
-	// HTTP ハンドラーを設定
 	http.HandleFunc("/start", handleStart)
 	http.HandleFunc("/progress", handleProgress)
 	http.HandleFunc("/", handleOptions) // CORS対応
-
-	// TLS 証明書と秘密鍵を読み込む
-	// ※ "server.crt" と "server.key" は証明書ファイルのパスに合わせて変更してください。
-	certFile := "server.crt"
-	keyFile := "server.key"
-
-	// サーバーに最低 TLS 1.2 を指定する例（必要に応じて他の TLS 設定を追加できます）
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-	}
-
-	// HTTPS サーバーの作成
-	server := &http.Server{
-		Addr:      ":8080",
-		TLSConfig: tlsConfig,
-	}
-
-	fmt.Println("サーバーが https://localhost:8080 で起動しました...")
-	err := server.ListenAndServeTLS(certFile, keyFile)
-	if err != nil {
-		fmt.Println("Error starting server:", err)
-	}
+	fmt.Println("サーバーが http://localhost:8080 で起動しました...")
+	http.ListenAndServe(":8080", nil)
 }
 
 // CORS ヘッダーを設定する関数
@@ -74,6 +52,7 @@ func handleOptions(w http.ResponseWriter, r *http.Request) {
 // パスワード探索を開始する
 func handleStart(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w)
+
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -82,12 +61,14 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	target = r.FormValue("target")
 	reset()
 	go passCheckParallel(target)
+
 	fmt.Fprintln(w, "パスワード探索を開始しました。")
 }
 
 // 進捗を取得する
 func handleProgress(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w)
+
 	mu.Lock()
 	data := struct {
 		Progress string `json:"progress"`
