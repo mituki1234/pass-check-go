@@ -119,15 +119,14 @@
     </header>
     <div class="container">
         <section class="form-section">
-            <h3>パスワードを探索</h3>
+            <h3>総当たり攻撃を体験</h3>
             <form id="passwordForm">
-                <label for="target">見つけて欲しいパスワード：</label>
+                <label for="target">総当たり攻撃を体験したいパスワード</label>
                 <input type="password" id="target" name="target" required>
                 <button type="submit">探索開始</button>
             </form>
             <div id="progress">
-                <p><strong>進捗:</strong> <span id="progressText">未開始</span></p>
-                <p><strong>見つかったパスワード:</strong> <span id="resultText"></span></p>
+                <p<span id="resultText"></span></p>
             </div>
         </section>
     </div>
@@ -136,7 +135,6 @@
     document.getElementById("passwordForm").onsubmit = function(event) {
         event.preventDefault();
         const target = document.getElementById("target").value;
-        document.getElementById("progressText").textContent = '0%';
         document.getElementById("resultText").textContent = '';
         fetch("/start", {
             method: "POST",
@@ -147,8 +145,7 @@
             fetch("/progress")
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById("progressText").textContent = data.progress;
-                    document.getElementById("resultText").textContent = data.result;
+                    document.getElementById("resultText").textContent = data.progress + data.result;
                     if (data.result) clearInterval(interval);
                 })
                 .catch(error => {
