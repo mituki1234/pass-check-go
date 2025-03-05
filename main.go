@@ -1,28 +1,27 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 )
 
-// 62進数の文字リスト（グローバル定義）
 var woList = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
-var (
+const (
 	maxLen   = 8        // 最大長
 	numWorks = 8        // 並列処理のスレッド数
 	batch    = 50000000 // 進捗表示の間隔
 )
 
-// グローバルな変数
 var (
-	target   string
-	found    bool
-	result   string
-	progress string
-	mu       sync.Mutex // 進捗の更新を保護するためのロック
+	target   []byte
+	found    int32
+	result   atomic.Value
+	progress atomic.Value
 )
 
 func main() {
@@ -33,82 +32,71 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-// ホームページ
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "index.html")
 }
 
-// パスワード探索を開始する
 func handleStart(w http.ResponseWriter, r *http.Request) {
-	// ターゲットパスワードの受け取り
-	target = r.FormValue("target")
-	// 結果をリセット
+	target = []byte(r.FormValue("target"))
 	reset()
-
-	// 並列処理で総当たり
-	go passCheckParallel(target)
-
-	// 初期状態のレスポンス
+	go passCheckParallel()
 	fmt.Fprintln(w, "パスワード探索を開始しました。")
 }
 
-// 並列処理で総当たりする関数
-func passCheckParallel(target string) {
+func passCheckParallel() {
 	var wg sync.WaitGroup
-	resultChan := make(chan string, 1)
+	resultChan := make(chan []byte, 1)
 
-	// 各スレッドを開始（最初の桁を分散）
 	for i := 0; i < numWorks; i++ {
 		wg.Add(1)
-		go worker(target, i, numWorks, &wg, resultChan)
+		go worker(i, numWorks, &wg, resultChan)
 	}
 
-	// 結果を待つ
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
-	// 結果を受け取る
 	for res := range resultChan {
 		setResult(res)
 	}
 }
 
-// 各スレッドが担当する範囲を決めて探索
-func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan chan string) {
+func worker(startIndex, step int, wg *sync.WaitGroup, resultChan chan []byte) {
 	defer wg.Done()
 
-	knowPassNum := []int{startIndex} // スレッドごとの開始位置
-	passBytes := make([]byte, 1)     // 生成するパスワード（バイトスライス）
+	// 最初の桁を startIndex から開始
+	knowPassNum := []int{startIndex}
+	passBytes := make([]byte, 1)
 	count := 0
 
 	for {
-		if found {
-			return // 既に見つかったら終了
+		if atomic.LoadInt32(&found) == 1 {
+			return
 		}
-		count++ // 現在のパスワードを作成
+		count++
 
+		// 現在のパスワードを設定
 		for i, num := range knowPassNum {
 			passBytes[i] = woList[num]
 		}
 
-		// 目標のパスワードと一致
-		if string(passBytes) == target {
-			resultChan <- string(passBytes)
+		// 目標パスワードと比較
+		if bytes.Equal(passBytes, target) {
+			resultChan <- append([]byte(nil), passBytes...)
 			return
 		}
 
 		// 進捗表示
 		if count%batch == 0 {
-			updateProgress(fmt.Sprintf("現在のパスワード: %s", string(passBytes)))
+			updateProgress(fmt.Sprintf("現在のパスワード: %s", passBytes))
 		}
 
-		// 62進数のカウントアップ（stepごとに増加）
+		// 次のパスワードへ（桁の繰り上がり処理）
 		carry := true
 		for i := len(knowPassNum) - 1; i >= 0 && carry; i-- {
 			if i == 0 {
-				knowPassNum[i] += step // スレッドごとに異なるstepで増加
+				knowPassNum[i] += step
 			} else {
 				knowPassNum[i]++
 			}
@@ -120,10 +108,10 @@ func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan 
 			}
 		}
 
-		// 繰り上がりが発生
+		// すべての桁で繰り上がった場合、新しい桁を追加
 		if carry {
 			if len(knowPassNum) >= maxLen {
-				return // 最大長を超えたら終了
+				return
 			}
 			knowPassNum = append([]int{startIndex}, knowPassNum...)
 			passBytes = append([]byte{woList[startIndex]}, passBytes...)
@@ -131,43 +119,31 @@ func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan 
 	}
 }
 
-// 進捗を更新する関数（スレッドセーフ）
 func updateProgress(msg string) {
-	mu.Lock()
-	progress = msg
-	mu.Unlock()
+	progress.Store(msg)
 }
 
-// 結果をセットする関数（スレッドセーフ）
-func setResult(res string) {
-	mu.Lock()
-	result = res
-	found = true
-	progress = "パスワードが見つかりました！"
-	mu.Unlock()
+func setResult(res []byte) {
+	atomic.StoreInt32(&found, 1)
+	result.Store(string(res))
+	progress.Store("パスワードが見つかりました！")
 }
 
-// 進捗を取得する
 func handleProgress(w http.ResponseWriter, r *http.Request) {
-	mu.Lock()
 	data := struct {
 		Progress string `json:"progress"`
 		Result   string `json:"result"`
 	}{
-		Progress: progress,
-		Result:   result,
+		Progress: progress.Load().(string),
+		Result:   result.Load().(string),
 	}
-	mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }
 
-// 結果をリセットする
 func reset() {
-	mu.Lock()
-	found = false
-	result = ""
-	progress = "探索中..."
-	mu.Unlock()
+	atomic.StoreInt32(&found, 0)
+	result.Store("")
+	progress.Store("探索中...")
 }
