@@ -13,7 +13,7 @@ var woList = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw
 
 var (
 	maxLen   = 8        // 最大長
-	numWorks = 8        // 並列処理のスレッド数
+	numWorks = 4        // 並列処理のスレッド数
 	batch    = 50000000 // 進捗表示の間隔
 )
 
