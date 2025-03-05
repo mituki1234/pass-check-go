@@ -14,50 +14,39 @@
         /* ベーススタイル */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #ffffff;
-            color: #000000;
+            background-color: #000;
+            color: #fff;
             line-height: 1.6;
         }
         /* ヘッダーのスタイル */
         header {
-            background-color: #fafafa;
-            padding: 20px 0;
-            border-bottom: 1px solid #eaeaea;
-        }
-        header .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #333;
         }
         header h1 {
             font-size: 24px;
             font-weight: bold;
         }
-        /* ナビゲーション */
-        nav ul {
-            list-style: none;
+        .menu {
             display: flex;
+            gap: 20px;
         }
-        nav li {
-            margin-left: 20px;
-        }
-        nav a {
+        .menu a {
+            color: #fff;
             text-decoration: none;
-            color: #0070f3;
             font-size: 16px;
-            transition: color 0.3s;
+            transition: opacity 0.3s;
         }
-        nav a:hover {
-            color: #0051a8;
+        .menu a:hover {
+            opacity: 0.7;
         }
         /* メインビジュアル */
         .hero {
-            background-color: #f7f8fa;
-            padding: 80px 20px;
             text-align: center;
+            padding: 80px 20px;
         }
         .hero h2 {
             font-size: 36px;
@@ -66,38 +55,36 @@
         .hero p {
             font-size: 18px;
             margin-bottom: 40px;
-            color: #555;
+            color: #aaa;
         }
         .hero button {
-            background-color: #0070f3;
+            background: linear-gradient(90deg, #0070f3, #0051a8);
             color: #fff;
             padding: 14px 28px;
             font-size: 18px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: opacity 0.3s;
         }
         .hero button:hover {
-            background-color: #0051a8;
+            opacity: 0.8;
         }
-        /* メインコンテンツ */
+        /* フォーム */
         .container {
-            max-width: 800px;
+            max-width: 600px;
             margin: 60px auto;
             padding: 0 20px;
+            text-align: center;
         }
         .form-section {
-            background-color: #fafafa;
+            background: #111;
             padding: 40px;
             border-radius: 8px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 14px rgba(255, 255, 255, 0.1);
         }
         .form-section h3 {
             font-size: 28px;
-            margin-bottom: 20px;
-        }
-        .form-section form {
             margin-bottom: 20px;
         }
         .form-section label {
@@ -106,33 +93,30 @@
             margin-bottom: 8px;
             font-size: 16px;
         }
-        .form-section input[type="text"] {
+        .form-section input {
             width: 100%;
             padding: 12px;
             font-size: 16px;
-            border: 1px solid #eaeaea;
+            border: 1px solid #222;
             border-radius: 4px;
             margin-bottom: 16px;
-            transition: border-color 0.3s;
-        }
-        .form-section input[type="text"]:focus {
-            border-color: #0070f3;
-            outline: none;
+            background: #222;
+            color: #fff;
         }
         .form-section button {
-            background-color: #0070f3;
+            background: linear-gradient(90deg, #0070f3, #0051a8);
             color: #fff;
             padding: 12px 20px;
             font-size: 16px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: opacity 0.3s;
         }
         .form-section button:hover {
-            background-color: #0051a8;
+            opacity: 0.8;
         }
-        /* 進捗情報のスタイル */
+        /* 進捗情報 */
         #progress {
             margin-top: 30px;
         }
@@ -140,61 +124,19 @@
             margin-bottom: 10px;
             font-size: 16px;
         }
-        /* フッターのスタイル */
-        footer {
-            text-align: center;
-            padding: 40px 20px;
-            background-color: #fafafa;
-            color: #666;
-            font-size: 14px;
-            border-top: 1px solid #eaeaea;
-        }
-        /* レスポンシブ対応 */
-        @media (max-width: 768px) {
-            header {
-                padding: 10px 0;
-            }
-            header h1 {
-                font-size: 20px;
-            }
-            .hero h2 {
-                font-size: 28px;
-            }
-            .hero p {
-                font-size: 16px;
-            }
-            .form-section h3 {
-                font-size: 24px;
-            }
-        }
     </style>
 </head>
 <body>
-    <!-- ヘッダー -->
     <header>
-        <div class="container">
-            <h1>パスワード探索ツール</h1>
-            <nav>
-                <ul>
-                    <li><a href="#">ホーム</a></li>
-                    <li><a href="#">機能</a></li>
-                    <li><a href="#">お問い合わせ</a></li>
-                </ul>
-            </nav>
+        <h1>パスワード探索ツール</h1>
+        <div class="menu">
+            <a href="#">名前</a>
+            <a href="https://github.com" target="_blank">GitHub</a>
         </div>
     </header>
-
-    <!-- メインビジュアル -->
-    <section class="hero">
-        <h2>安全で効率的なパスワード探索を体験しよう</h2>
-        <p>最新のテクノロジーを活用して、パスワード探索をスピーディーに行います。</p>
-        <button onclick="document.getElementById('target').focus();">今すぐ始める</button>
-    </section>
-
-    <!-- メインコンテンツ -->
     <div class="container">
         <section class="form-section">
-            <h3>パスワードを見つける</h3>
+            <h3>パスワードを探索</h3>
             <form id="passwordForm">
                 <label for="target">見つけて欲しいパスワード：</label>
                 <input type="password" id="target" name="target" required>
@@ -206,47 +148,30 @@
             </div>
         </section>
     </div>
-
-    <!-- フッター -->
-    <footer>
-        &copy; 2023 パスワード探索ツール. All rights reserved.
-    </footer>
-
     <script>
-        // フォーム送信時の処理
         document.getElementById("passwordForm").onsubmit = function(event) {
             event.preventDefault();
             const target = document.getElementById("target").value;
-
-            // 進捗状況の初期化
             document.getElementById("progressText").textContent = '0%';
             document.getElementById("resultText").textContent = '';
-
-            // パスワード探索を開始（サーバーサイドの処理を呼び出す必要があります）
             fetch("/start", {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: "target=" + encodeURIComponent(target)
             });
-
-            // 進捗情報を定期的に取得
             const interval = setInterval(function() {
                 fetch("/progress")
                     .then(response => response.json())
                     .then(data => {
                         document.getElementById("progressText").textContent = data.progress;
                         document.getElementById("resultText").textContent = data.result;
-
-                        // パスワードが見つかったら停止
-                        if (data.result) {
-                            clearInterval(interval);
-                        }
+                        if (data.result) clearInterval(interval);
                     })
                     .catch(error => {
-                        console.error('エラーが発生しました:', error);
+                        console.error('エラー:', error);
                         clearInterval(interval);
                     });
-            }, 1000); // 1秒ごとに進捗を取得
+            }, 1000);
         };
     </script>
 </body>
