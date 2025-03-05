@@ -12,7 +12,7 @@ var woList = []byte("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw
 
 var (
 	maxLen   = 8        // 最大長
-	numWorks = 4        // 並列処理のスレッド数
+	numWorks = 8        // 並列処理のスレッド数
 	batch    = 50000000 // 進捗表示の間隔
 )
 
@@ -26,61 +26,30 @@ var (
 )
 
 func main() {
+	http.HandleFunc("/", handleIndex)
 	http.HandleFunc("/start", handleStart)
 	http.HandleFunc("/progress", handleProgress)
-	http.HandleFunc("/", handleOptions) // CORS対応
 	fmt.Println("サーバーが http://localhost:8080 で起動しました...")
 	http.ListenAndServe(":8080", nil)
 }
 
-// CORS ヘッダーを設定する関数
-func setCORSHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-}
-
-// OPTIONSリクエストを処理
-func handleOptions(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w)
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
+// ホームページ
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "index.html")
 }
 
 // パスワード探索を開始する
 func handleStart(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w)
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
+	// ターゲットパスワードの受け取り
 	target = r.FormValue("target")
+	// 結果をリセット
 	reset()
+
+	// 並列処理で総当たり
 	go passCheckParallel(target)
 
+	// 初期状態のレスポンス
 	fmt.Fprintln(w, "パスワード探索を開始しました。")
-}
-
-// 進捗を取得する
-func handleProgress(w http.ResponseWriter, r *http.Request) {
-	setCORSHeaders(w)
-
-	mu.Lock()
-	data := struct {
-		Progress string `json:"progress"`
-		Result   string `json:"result"`
-	}{
-		Progress: progress,
-		Result:   result,
-	}
-	mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
 }
 
 // 並列処理で総当たりする関数
@@ -88,16 +57,19 @@ func passCheckParallel(target string) {
 	var wg sync.WaitGroup
 	resultChan := make(chan string, 1)
 
+	// 各スレッドを開始（最初の桁を分散）
 	for i := 0; i < numWorks; i++ {
 		wg.Add(1)
 		go worker(target, i, numWorks, &wg, resultChan)
 	}
 
+	// 結果を待つ
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
+	// 結果を受け取る
 	for res := range resultChan {
 		setResult(res)
 	}
@@ -107,33 +79,36 @@ func passCheckParallel(target string) {
 func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan chan string) {
 	defer wg.Done()
 
-	knowPassNum := []int{startIndex}
-	passBytes := make([]byte, 1)
+	knowPassNum := []int{startIndex} // スレッドごとの開始位置
+	passBytes := make([]byte, 1)     // 生成するパスワード（バイトスライス）
 	count := 0
 
 	for {
 		if found {
-			return
+			return // 既に見つかったら終了
 		}
-		count++
+		count++ // 現在のパスワードを作成
 
 		for i, num := range knowPassNum {
 			passBytes[i] = woList[num]
 		}
 
+		// 目標のパスワードと一致
 		if string(passBytes) == target {
 			resultChan <- string(passBytes)
 			return
 		}
 
+		// 進捗表示
 		if count%batch == 0 {
 			updateProgress(fmt.Sprintf("現在のパスワード: %s", string(passBytes)))
 		}
 
+		// 62進数のカウントアップ（stepごとに増加）
 		carry := true
 		for i := len(knowPassNum) - 1; i >= 0 && carry; i-- {
 			if i == 0 {
-				knowPassNum[i] += step
+				knowPassNum[i] += step // スレッドごとに異なるstepで増加
 			} else {
 				knowPassNum[i]++
 			}
@@ -145,9 +120,10 @@ func worker(target string, startIndex, step int, wg *sync.WaitGroup, resultChan 
 			}
 		}
 
+		// 繰り上がりが発生
 		if carry {
 			if len(knowPassNum) >= maxLen {
-				return
+				return // 最大長を超えたら終了
 			}
 			knowPassNum = append([]int{startIndex}, knowPassNum...)
 			passBytes = append([]byte{woList[startIndex]}, passBytes...)
@@ -169,6 +145,22 @@ func setResult(res string) {
 	found = true
 	progress = "パスワードが見つかりました！"
 	mu.Unlock()
+}
+
+// 進捗を取得する
+func handleProgress(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	data := struct {
+		Progress string `json:"progress"`
+		Result   string `json:"result"`
+	}{
+		Progress: progress,
+		Result:   result,
+	}
+	mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
 }
 
 // 結果をリセットする
